@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FFAI Robothon 2026 — Embodied AI Simulator</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=JetBrains+Mono:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --black: #050A14;
+    --surface: #0D1B2A;
+    --panel: #0A1520;
+    --blue: #00D4FF;
+    --green: #39FF14;
+    --amber: #FF8C00;
+    --red: #FF3860;
+    --dim: #1A2B3C;
+    --text: #C8D8E8;
+    --muted: #4A6070;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--black);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    overflow: hidden;
+  }
+
+  /* HEADER */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--blue);
+    box-shadow: 0 0 20px rgba(0,212,255,0.15);
+  }
+
+  .logo {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 13px;
+    font-weight: 900;
+    color: var(--blue);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+  .logo span { color: var(--green); }
+
+  .status-bar {
+    display: flex;
+    gap: 20px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .status-bar .live { color: var(--green); animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .score-display {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 14px;
+    color: var(--amber);
+    font-weight: 700;
+  }
+
+  /* MAIN LAYOUT */
+  .main {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    grid-template-rows: 1fr 160px;
+    height: calc(100vh - 48px);
+    gap: 1px;
+    background: var(--dim);
+  }
+
+  /* SIMULATOR CANVAS */
+  .sim-panel {
+    background: var(--black);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .panel-label {
+    position: absolute;
+    top: 10px; left: 12px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    z-index: 10;
+  }
+
+  canvas#world {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* BRAIN PANEL */
+  .brain-panel {
+    background: var(--panel);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    grid-row: 1 / 2;
+  }
+
+  .brain-header {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--dim);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--blue);
+  }
+
+  canvas#brain {
+    width: 100%;
+    height: 180px;
+    flex-shrink: 0;
+  }
+
+  .ai-thought {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 14px;
+    font-size: 10.5px;
+    line-height: 1.7;
+    color: var(--text);
+    scrollbar-width: thin;
+    scrollbar-color: var(--dim) transparent;
+  }
+
+  .thought-entry {
+    margin-bottom: 8px;
+    padding: 6px 8px;
+    border-left: 2px solid var(--blue);
+    background: rgba(0,212,255,0.04);
+    border-radius: 0 4px 4px 0;
+    animation: fadeIn 0.4s ease;
+  }
+  .thought-entry.action { border-color: var(--green); background: rgba(57,255,20,0.04); }
+  .thought-entry.warn { border-color: var(--amber); background: rgba(255,140,0,0.04); }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
+
+  .thought-label {
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    margin-bottom: 2px;
+  }
+
+  .thinking-spinner {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--blue);
+    font-size: 10px;
+  }
+  .dot-spin { display: inline-flex; gap: 3px; }
+  .dot-spin span {
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--blue);
+    animation: bounce 1s infinite;
+  }
+  .dot-spin span:nth-child(2){animation-delay:.15s}
+  .dot-spin span:nth-child(3){animation-delay:.3s}
+  @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+
+  /* BOTTOM CONTROLS */
+  .controls-panel {
+    grid-column: 1 / 2;
+    background: var(--panel);
+    border-top: 1px solid var(--dim);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0 16px;
+    overflow: hidden;
+  }
+
+  .task-select {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .task-select label {
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+  select {
+    background: var(--dim);
+    border: 1px solid var(--blue);
+    color: var(--blue);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 5px 10px;
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  .btn {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    padding: 8px 18px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+  }
+  .btn-primary {
+    background: var(--blue);
+    color: var(--black);
+    box-shadow: 0 0 12px rgba(0,212,255,0.4);
+  }
+  .btn-primary:hover { box-shadow: 0 0 24px rgba(0,212,255,0.7); transform: translateY(-1px); }
+  .btn-secondary {
+    background: transparent;
+    color: var(--green);
+    border: 1px solid var(--green);
+  }
+  .btn-secondary:hover { background: rgba(57,255,20,0.1); }
+  .btn-danger {
+    background: transparent;
+    color: var(--red);
+    border: 1px solid var(--red);
+  }
+
+  .metrics {
+    display: flex;
+    gap: 20px;
+    margin-left: auto;
+  }
+  .metric {
+    text-align: center;
+  }
+  .metric-val {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .metric-val.blue { color: var(--blue); }
+  .metric-val.green { color: var(--green); }
+  .metric-val.amber { color: var(--amber); }
+  .metric-label { font-size: 9px; color: var(--muted); letter-spacing: 1px; margin-top: 2px; }
+
+  /* BOTTOM RIGHT: SENSOR PANEL */
+  .sensor-panel {
+    grid-column: 2 / 3;
+    grid-row: 2 / 3;
+    background: var(--panel);
+    border-top: 1px solid var(--dim);
+    border-left: 1px solid var(--dim);
+    padding: 10px 14px;
+    overflow: hidden;
+  }
+
+  .sensor-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .sensor-bar-wrap { }
+  .sensor-name { font-size: 9px; color: var(--muted); letter-spacing: 1px; margin-bottom: 3px; }
+  .sensor-bar {
+    height: 6px;
+    background: var(--dim);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .sensor-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+  }
+
+  /* SCANLINE OVERLAY */
+  .sim-panel::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  /* HUD Overlays */
+  .hud-overlay {
+    position: absolute;
+    bottom: 14px; left: 14px;
+    font-size: 10px;
+    color: var(--muted);
+    z-index: 10;
+    line-height: 1.8;
+  }
+  .hud-overlay span { color: var(--blue); }
+
+  .compass {
+    position: absolute;
+    top: 12px; right: 14px;
+    z-index: 10;
+  }
+
+  #task-banner {
+    position: absolute;
+    top: 10px; left: 50%; transform: translateX(-50%);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--amber);
+    background: rgba(5,10,20,0.8);
+    border: 1px solid var(--amber);
+    padding: 5px 16px;
+    border-radius: 2px;
+    z-index: 10;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">FFAI <span>ROBOTHON</span> 2026 · EMBODIED AI SIMULATOR</div>
+  <div class="status-bar">
+    <span class="live">● LIVE</span>
+    <span id="sim-time">T+00:00</span>
+    <span id="episode-counter">EPISODE 1</span>
+  </div>
+  <div class="score-display">SCORE: <span id="header-score">0</span></div>
+</header>
+
+<div class="main">
+
+  <!-- WORLD CANVAS -->
+  <div class="sim-panel">
+    <div class="panel-label">ENVIRONMENT · TOP-DOWN VIEW</div>
+    <div id="task-banner">TASK: NAVIGATE & COLLECT</div>
+    <canvas id="world"></canvas>
+    <div class="hud-overlay">
+      POS: (<span id="hud-x">0</span>, <span id="hud-y">0</span>)<br>
+      HDG: <span id="hud-hdg">0°</span><br>
+      SPEED: <span id="hud-spd">0.0</span> m/s<br>
+      ENERGY: <span id="hud-energy">100</span>%
+    </div>
+    <canvas class="compass" id="compass" width="60" height="60"></canvas>
+  </div>
+
+  <!-- AI BRAIN PANEL -->
+  <div class="brain-panel">
+    <div class="brain-header">◈ AI NEURAL ACTIVITY</div>
+    <canvas id="brain" height="160"></canvas>
+    <div class="ai-thought" id="thought-log">
+      <div class="thought-entry">
+        <div class="thought-label">SYSTEM</div>
+        Embodied AI initialized. Awaiting task assignment...
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTROLS -->
+  <div class="controls-panel">
+    <div class="task-select">
+      <label>TASK</label>
+      <select id="task-select">
+        <option value="collect">COLLECT ALL TARGETS</option>
+        <option value="navigate">MAZE NAVIGATION</option>
+        <option value="patrol">AREA PATROL</option>
+        <option value="avoid">OBSTACLE AVOIDANCE</option>
+      </select>
+    </div>
+    <div class="task-select">
+      <label>AGENT</label>
+      <select id="agent-select">
+        <option value="claude">CLAUDE AI</option>
+        <option value="reflex">REFLEX AGENT</option>
+        <option value="random">RANDOM WALK</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" onclick="startSimulation()">▶ RUN SIMULATION</button>
+    <button class="btn btn-secondary" onclick="stepOnce()">STEP</button>
+    <button class="btn btn-danger" onclick="resetSimulation()">↺ RESET</button>
+    <div class="metrics">
+      <div class="metric">
+        <div class="metric-val blue" id="m-steps">0</div>
+        <div class="metric-label">STEPS</div>
+      </div>
+      <div class="metric">
+        <div class="metric-val green" id="m-collected">0</div>
+        <div class="metric-label">COLLECTED</div>
+      </div>
+      <div class="metric">
+        <div class="metric-val amber" id="m-score">0</div>
+        <div class="metric-label">SCORE</div>
+      </div>
+      <div class="metric">
+        <div class="metric-val" style="color:var(--red)" id="m-collisions">0</div>
+        <div class="metric-label">COLLISIONS</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SENSOR PANEL -->
+  <div class="sensor-panel">
+    <div class="brain-header" style="padding:0 0 6px 0; margin-bottom:0">◈ SENSOR ARRAY</div>
+    <div class="sensor-grid">
+      <div class="sensor-bar-wrap">
+        <div class="sensor-name">PROXIMITY FWD</div>
+        <div class="sensor-bar"><div class="sensor-fill" id="s-fwd" style="width:0%;background:var(--blue)"></div></div>
+      </div>
+      <div class="sensor-bar-wrap">
+        <div class="sensor-name">PROXIMITY LEFT</div>
+        <div class="sensor-bar"><div class="sensor-fill" id="s-left" style="width:0%;background:var(--green)"></div></div>
+      </div>
+      <div class="sensor-bar-wrap">
+        <div class="sensor-name">PROXIMITY RIGHT</div>
+        <div class="sensor-bar"><div class="sensor-fill" id="s-right" style="width:0%;background:var(--green)"></div></div>
+      </div>
+      <div class="sensor-bar-wrap">
+        <div class="sensor-name">TARGET BEARING</div>
+        <div class="sensor-bar"><div class="sensor-fill" id="s-target" style="width:50%;background:var(--amber)"></div></div>
+      </div>
+      <div class="sensor-bar-wrap">
+        <div class="sensor-name">ENERGY LEVEL</div>
+        <div class="sensor-bar"><div class="sensor-fill" id="s-energy" style="width:100%;background:var(--amber)"></div></div>
+      </div>
+      <div class="sensor-bar-wrap">
+        <div class="sensor-name">CONFIDENCE</div>
+        <div class="sensor-bar"><div class="sensor-fill" id="s-conf" style="width:0%;background:var(--blue)"></div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── STATE ─────────────────────────────────────────────────────────────────
+const W = () => document.getElementById('world');
+let ctx, bctx, cmpCtx;
+let worldW, worldH;
+let simRunning = false;
+let simInterval = null;
+let simTime = 0;
+let stepCount = 0;
+let collisions = 0;
+let score = 0;
+let episode = 1;
+let energy = 100;
+let thinkingCooldown = 0;
+let lastAIAction = 'none';
+
+const CELL = 40;
+const COLS = () => Math.floor(worldW / CELL);
+const ROWS = () => Math.floor(worldH / CELL);
+
+let robot = { x: 0, y: 0, heading: 0, speed: 0, trail: [] };
+let targets = [];
+let obstacles = [];
+let particles = [];
+let collected = 0;
+
+// Neural network visualization state
+let neurons = [];
+let synapses = [];
+let brainActivity = [];
+let brainAnimT = 0;
+
+// ─── INIT ───────────────────────────────────────────────────────────────────
+function initCanvas() {
+  const wc = document.getElementById('world');
+  const bc = document.getElementById('brain');
+  const cc = document.getElementById('compass');
+  const container = wc.parentElement;
+
+  wc.width = container.clientWidth;
+  wc.height = container.clientHeight;
+  worldW = wc.width;
+  worldH = wc.height;
+
+  bc.width = bc.offsetWidth || 340;
+  bc.height = 160;
+
+  ctx = wc.getContext('2d');
+  bctx = bc.getContext('2d');
+  cmpCtx = cc.getContext('2d');
+
+  buildNeurons(bc.width, 160);
+  resetSimulation();
+}
+
+function buildNeurons(w, h) {
+  neurons = [];
+  const layers = [4, 6, 6, 3];
+  const layerX = [0.15, 0.38, 0.62, 0.85];
+  layers.forEach((count, li) => {
+    for (let i = 0; i < count; i++) {
+      neurons.push({
+        x: layerX[li] * w,
+        y: (h / (count + 1)) * (i + 1),
+        layer: li,
+        act: Math.random(),
+        targetAct: Math.random(),
+        bias: Math.random() * 0.3
+      });
+    }
+  });
+  synapses = [];
+  let li = 0, counts = layers;
+  for (let l = 0; l < layers.length - 1; l++) {
+    const fromNs = neurons.filter(n => n.layer === l);
+    const toNs = neurons.filter(n => n.layer === l + 1);
+    fromNs.forEach(f => toNs.forEach(t => {
+      synapses.push({ from: f, to: t, w: (Math.random() - 0.5) * 2, act: 0 });
+    }));
+  }
+}
+
+function resetSimulation() {
+  simRunning = false;
+  clearInterval(simInterval);
+  simTime = 0; stepCount = 0; collisions = 0; score = 0;
+  energy = 100; collected = 0; particles = [];
+
+  const cx = Math.floor(COLS() / 2) * CELL + CELL / 2;
+  const cy = Math.floor(ROWS() / 2) * CELL + CELL / 2;
+  robot = { x: cx, y: cy, heading: 0, speed: 0, trail: [] };
+
+  generateEnvironment();
+  updateMetrics();
+  renderWorld();
+  renderBrain();
+}
+
+function generateEnvironment() {
+  targets = [];
+  obstacles = [];
+  const task = document.getElementById('task-select').value;
+  document.getElementById('task-banner').textContent = `TASK: ${document.getElementById('task-select').options[document.getElementById('task-select').selectedIndex].text}`;
+
+  // Generate targets (glowing orbs)
+  const tCount = task === 'collect' ? 8 : task === 'patrol' ? 4 : 5;
+  for (let i = 0; i < tCount; i++) {
+    let tx, ty, ok;
+    do {
+      tx = CELL + Math.random() * (worldW - CELL * 2);
+      ty = CELL + Math.random() * (worldH - CELL * 2);
+      ok = Math.hypot(tx - robot.x, ty - robot.y) > 80;
+    } while (!ok);
+    targets.push({ x: tx, y: ty, r: 12, collected: false, pulse: Math.random() * Math.PI * 2 });
+  }
+
+  // Generate obstacles
+  const oCount = task === 'avoid' ? 14 : task === 'navigate' ? 20 : 8;
+  for (let i = 0; i < oCount; i++) {
+    let ox, oy, ow, oh, ok;
+    do {
+      ow = CELL + Math.random() * CELL;
+      oh = CELL + Math.random() * CELL;
+      ox = CELL + Math.random() * (worldW - CELL * 3 - ow);
+      oy = CELL + Math.random() * (worldH - CELL * 3 - oh);
+      ok = Math.hypot(ox + ow/2 - robot.x, oy + oh/2 - robot.y) > 100;
+    } while (!ok);
+    obstacles.push({ x: ox, y: oy, w: ow, h: oh });
+  }
+}
+
+// ─── RENDER WORLD ───────────────────────────────────────────────────────────
+function renderWorld() {
+  if (!ctx) return;
+  ctx.clearRect(0, 0, worldW, worldH);
+
+  // Background grid
+  ctx.strokeStyle = 'rgba(26,43,60,0.6)';
+  ctx.lineWidth = 0.5;
+  for (let x = 0; x < worldW; x += CELL) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, worldH); ctx.stroke();
+  }
+  for (let y = 0; y < worldH; y += CELL) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(worldW, y); ctx.stroke();
+  }
+
+  // Obstacles
+  obstacles.forEach(o => {
+    ctx.fillStyle = 'rgba(10,21,32,0.9)';
+    ctx.fillRect(o.x, o.y, o.w, o.h);
+    ctx.strokeStyle = '#1A3550';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(o.x, o.y, o.w, o.h);
+    // Diagonal hatch
+    ctx.save();
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(26,53,80,0.4)';
+    ctx.lineWidth = 1;
+    for (let d = -Math.max(o.w,o.h); d < Math.max(o.w,o.h)*2; d += 10) {
+      ctx.beginPath();
+      ctx.moveTo(o.x + d, o.y);
+      ctx.lineTo(o.x + d + o.h, o.y + o.h);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    ctx.strokeStyle = 'rgba(0,212,255,0.15)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(o.x, o.y, o.w, o.h);
+  });
+
+  // Robot trail
+  if (robot.trail.length > 1) {
+    ctx.beginPath();
+    ctx.moveTo(robot.trail[0].x, robot.trail[0].y);
+    robot.trail.forEach((p, i) => {
+      ctx.lineTo(p.x, p.y);
+    });
+    ctx.strokeStyle = 'rgba(0,212,255,0.2)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 5]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Targets
+  const t = Date.now() / 1000;
+  targets.forEach(tg => {
+    if (tg.collected) return;
+    tg.pulse += 0.06;
+    const pulseFactor = Math.sin(tg.pulse) * 0.4 + 0.6;
+
+    // Glow
+    const grad = ctx.createRadialGradient(tg.x, tg.y, 0, tg.x, tg.y, tg.r * 2.5);
+    grad.addColorStop(0, `rgba(57,255,20,${0.6 * pulseFactor})`);
+    grad.addColorStop(1, 'rgba(57,255,20,0)');
+    ctx.beginPath();
+    ctx.arc(tg.x, tg.y, tg.r * 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(tg.x, tg.y, tg.r * pulseFactor, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(57,255,20,0.9)';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Inner cross
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(tg.x - 5, tg.y); ctx.lineTo(tg.x + 5, tg.y);
+    ctx.moveTo(tg.x, tg.y - 5); ctx.lineTo(tg.x, tg.y + 5);
+    ctx.stroke();
+  });
+
+  // Particles
+  particles = particles.filter(p => p.life > 0);
+  particles.forEach(p => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * (p.life / p.maxLife), 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${p.col},${p.life / p.maxLife})`;
+    ctx.fill();
+    p.x += p.vx; p.y += p.vy;
+    p.vx *= 0.95; p.vy *= 0.95;
+    p.life--;
+  });
+
+  // Robot sensor rays
+  const rayAngles = [-60, -30, 0, 30, 60];
+  rayAngles.forEach(angle => {
+    const rad = (robot.heading + angle) * Math.PI / 180;
+    const rayLen = 80;
+    const ex = robot.x + Math.cos(rad) * rayLen;
+    const ey = robot.y + Math.sin(rad) * rayLen;
+    const grad = ctx.createLinearGradient(robot.x, robot.y, ex, ey);
+    grad.addColorStop(0, 'rgba(0,212,255,0.4)');
+    grad.addColorStop(1, 'rgba(0,212,255,0)');
+    ctx.beginPath();
+    ctx.moveTo(robot.x, robot.y);
+    ctx.lineTo(ex, ey);
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  });
+
+  // Robot body
+  ctx.save();
+  ctx.translate(robot.x, robot.y);
+  ctx.rotate(robot.heading * Math.PI / 180);
+
+  // Glow
+  const rGlow = ctx.createRadialGradient(0, 0, 5, 0, 0, 28);
+  rGlow.addColorStop(0, 'rgba(0,212,255,0.3)');
+  rGlow.addColorStop(1, 'rgba(0,212,255,0)');
+  ctx.beginPath(); ctx.arc(0, 0, 28, 0, Math.PI*2);
+  ctx.fillStyle = rGlow; ctx.fill();
+
+  // Body hexagon
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = (i * 60 - 30) * Math.PI / 180;
+    i === 0 ? ctx.moveTo(Math.cos(a)*16, Math.sin(a)*16) : ctx.lineTo(Math.cos(a)*16, Math.sin(a)*16);
+  }
+  ctx.closePath();
+  ctx.fillStyle = '#0D1B2A';
+  ctx.fill();
+  ctx.strokeStyle = '#00D4FF';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Direction indicator
+  ctx.beginPath();
+  ctx.moveTo(16, 0); ctx.lineTo(8, -6); ctx.lineTo(8, 6); ctx.closePath();
+  ctx.fillStyle = '#00D4FF'; ctx.fill();
+
+  // Core
+  ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI*2);
+  ctx.fillStyle = '#00D4FF';
+  ctx.shadowBlur = 10; ctx.shadowColor = '#00D4FF';
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  ctx.restore();
+
+  // HUD
+  document.getElementById('hud-x').textContent = Math.round(robot.x);
+  document.getElementById('hud-y').textContent = Math.round(robot.y);
+  document.getElementById('hud-hdg').textContent = Math.round(robot.heading) + '°';
+  document.getElementById('hud-spd').textContent = robot.speed.toFixed(1);
+  document.getElementById('hud-energy').textContent = Math.round(energy);
+
+  renderCompass();
+}
+
+function renderCompass() {
+  const c = cmpCtx;
+  c.clearRect(0, 0, 60, 60);
+  c.fillStyle = 'rgba(5,10,20,0.7)';
+  c.beginPath(); c.arc(30, 30, 28, 0, Math.PI*2); c.fill();
+  c.strokeStyle = 'rgba(0,212,255,0.4)';
+  c.lineWidth = 1;
+  c.beginPath(); c.arc(30, 30, 28, 0, Math.PI*2); c.stroke();
+
+  c.save(); c.translate(30, 30);
+  c.rotate(robot.heading * Math.PI / 180);
+  c.fillStyle = '#FF3860';
+  c.beginPath(); c.moveTo(0,-18); c.lineTo(4,0); c.lineTo(-4,0); c.closePath(); c.fill();
+  c.fillStyle = '#4A6070';
+  c.beginPath(); c.moveTo(0,18); c.lineTo(4,0); c.lineTo(-4,0); c.closePath(); c.fill();
+  c.restore();
+
+  c.fillStyle = 'rgba(0,212,255,0.7)';
+  c.font = '7px JetBrains Mono';
+  c.textAlign = 'center';
+  c.fillText('N', 30, 8);
+}
+
+// ─── NEURAL BRAIN RENDER ────────────────────────────────────────────────────
+function renderBrain() {
+  if (!bctx) return;
+  const w = bctx.canvas.width, h = bctx.canvas.height;
+  bctx.clearRect(0, 0, w, h);
+  bctx.fillStyle = '#050A14';
+  bctx.fillRect(0, 0, w, h);
+
+  brainAnimT += 0.03;
+
+  // Animate neurons
+  neurons.forEach(n => {
+    n.targetAct = n.bias + Math.sin(brainAnimT * (1 + n.layer * 0.3) + n.x * 0.01) * 0.5 + 0.5;
+    n.act += (n.targetAct - n.act) * 0.08;
+  });
+
+  // Draw synapses
+  synapses.forEach(s => {
+    const act = (s.from.act + s.to.act) / 2;
+    const alpha = act * 0.5;
+    const col = s.w > 0 ? `rgba(0,212,255,${alpha})` : `rgba(255,56,96,${alpha})`;
+    bctx.beginPath();
+    bctx.moveTo(s.from.x, s.from.y);
+    bctx.lineTo(s.to.x, s.to.y);
+    bctx.strokeStyle = col;
+    bctx.lineWidth = Math.abs(s.w) * act;
+    bctx.stroke();
+  });
+
+  // Draw neurons
+  neurons.forEach(n => {
+    const r = 5 + n.act * 5;
+    const alpha = 0.4 + n.act * 0.6;
+    const colors = ['#00D4FF', '#8855FF', '#39FF14', '#FF8C00'];
+    const col = colors[n.layer];
+
+    bctx.beginPath(); bctx.arc(n.x, n.y, r * 1.8, 0, Math.PI*2);
+    bctx.fillStyle = col.replace(')', `,${alpha*0.2})`).replace('rgb', 'rgba').replace('#', 'rgba(');
+    // Simple glow:
+    const g = bctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 2);
+    g.addColorStop(0, col + 'AA');
+    g.addColorStop(1, col + '00');
+    bctx.fillStyle = g;
+    bctx.fill();
+
+    bctx.beginPath(); bctx.arc(n.x, n.y, r, 0, Math.PI*2);
+    bctx.fillStyle = col;
+    bctx.globalAlpha = alpha;
+    bctx.fill();
+    bctx.globalAlpha = 1;
+  });
+
+  // Label layers
+  const lbls = ['INPUT', 'HIDDEN', 'HIDDEN', 'ACTION'];
+  [0,1,2,3].forEach(l => {
+    const ns = neurons.filter(n => n.layer === l);
+    if (!ns.length) return;
+    bctx.fillStyle = 'rgba(74,96,112,0.7)';
+    bctx.font = '8px JetBrains Mono';
+    bctx.textAlign = 'center';
+    bctx.fillText(lbls[l], ns[0].x, h - 4);
+  });
+}
+
+// ─── SIMULATION LOGIC ───────────────────────────────────────────────────────
+function moveRobot(action) {
+  const speed = 3.5;
+  const turnRate = 15;
+
+  if (action === 'forward' || action === 'move_forward') {
+    const rad = robot.heading * Math.PI / 180;
+    let nx = robot.x + Math.cos(rad) * speed;
+    let ny = robot.y + Math.sin(rad) * speed;
+    if (!checkObstacleCollision(nx, ny)) {
+      robot.x = nx; robot.y = ny;
+      robot.speed = speed;
+    } else {
+      collisions++;
+      robot.speed = 0;
+      spawnParticles(robot.x, robot.y, '255,56,96', 8);
+      document.getElementById('m-collisions').textContent = collisions;
+    }
+  } else if (action === 'turn_left') {
+    robot.heading -= turnRate;
+    robot.speed = 1;
+  } else if (action === 'turn_right') {
+    robot.heading += turnRate;
+    robot.speed = 1;
+  } else if (action === 'backward') {
+    const rad = (robot.heading + 180) * Math.PI / 180;
+    let nx = robot.x + Math.cos(rad) * speed * 0.6;
+    let ny = robot.y + Math.sin(rad) * speed * 0.6;
+    if (!checkObstacleCollision(nx, ny)) { robot.x = nx; robot.y = ny; }
+    robot.speed = speed * 0.6;
+  }
+
+  // Clamp to world
+  robot.x = Math.max(18, Math.min(worldW - 18, robot.x));
+  robot.y = Math.max(18, Math.min(worldH - 18, robot.y));
+
+  // Wall bounce check
+  if (robot.x <= 18 || robot.x >= worldW - 18 || robot.y <= 18 || robot.y >= worldH - 18) {
+    robot.heading += 120 + Math.random() * 120;
+  }
+
+  // Trail
+  robot.trail.push({ x: robot.x, y: robot.y });
+  if (robot.trail.length > 80) robot.trail.shift();
+
+  // Check target collection
+  targets.forEach(tg => {
+    if (!tg.collected && Math.hypot(tg.x - robot.x, tg.y - robot.y) < tg.r + 14) {
+      tg.collected = true;
+      collected++;
+      score += 100;
+      spawnParticles(tg.x, tg.y, '57,255,20', 20);
+      addThought('action', `TARGET ACQUIRED at (${Math.round(tg.x)}, ${Math.round(tg.y)}) — Score +100`);
+      document.getElementById('m-collected').textContent = collected;
+    }
+  });
+
+  energy = Math.max(0, energy - 0.08);
+  updateSensors();
+}
+
+function checkObstacleCollision(nx, ny) {
+  for (const o of obstacles) {
+    if (nx + 14 > o.x && nx - 14 < o.x + o.w && ny + 14 > o.y && ny - 14 < o.y + o.h) return true;
+  }
+  return false;
+}
+
+function spawnParticles(x, y, col, count) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const spd = 1 + Math.random() * 3;
+    particles.push({ x, y, vx: Math.cos(angle)*spd, vy: Math.sin(angle)*spd, r: 3 + Math.random()*4, life: 30, maxLife: 30, col });
+  }
+}
+
+function getReflexAction() {
+  // Find nearest uncollected target
+  let nearest = null, minDist = Infinity;
+  targets.forEach(t => {
+    if (!t.collected) {
+      const d = Math.hypot(t.x - robot.x, t.y - robot.y);
+      if (d < minDist) { minDist = d; nearest = t; }
+    }
+  });
+
+  if (!nearest) return 'forward';
+
+  const angleToTarget = Math.atan2(nearest.y - robot.y, nearest.x - robot.x) * 180 / Math.PI;
+  let diff = angleToTarget - robot.heading;
+  while (diff > 180) diff -= 360;
+  while (diff < -180) diff += 360;
+
+  const fwd = getSensorDist('forward');
+  if (fwd < 40) return Math.random() < 0.5 ? 'turn_left' : 'turn_right';
+  if (Math.abs(diff) > 15) return diff > 0 ? 'turn_right' : 'turn_left';
+  return 'forward';
+}
+
+function getSensorDist(dir) {
+  const angles = { forward: 0, left: -60, right: 60 };
+  const a = (robot.heading + (angles[dir] || 0)) * Math.PI / 180;
+  const maxLen = 100;
+  for (let d = 10; d < maxLen; d += 5) {
+    const tx = robot.x + Math.cos(a) * d;
+    const ty = robot.y + Math.sin(a) * d;
+    for (const o of obstacles) {
+      if (tx > o.x && tx < o.x + o.w && ty > o.y && ty < o.y + o.h) return d;
+    }
+  }
+  return maxLen;
+}
+
+function updateSensors() {
+  const fwd = getSensorDist('forward');
+  const left = getSensorDist('left');
+  const right = getSensorDist('right');
+
+  document.getElementById('s-fwd').style.width = (fwd) + '%';
+  document.getElementById('s-left').style.width = (left) + '%';
+  document.getElementById('s-right').style.width = (right) + '%';
+  document.getElementById('s-energy').style.width = energy + '%';
+
+  let nearest = null, minDist = Infinity;
+  targets.forEach(t => {
+    if (!t.collected) {
+      const d = Math.hypot(t.x - robot.x, t.y - robot.y);
+      if (d < minDist) { minDist = d; nearest = t; }
+    }
+  });
+  const tBearing = nearest ? (minDist / Math.max(worldW, worldH)) * 100 : 0;
+  document.getElementById('s-target').style.width = (100 - tBearing) + '%';
+}
+
+// ─── AI CLAUDE INTEGRATION ──────────────────────────────────────────────────
+let isAIThinking = false;
+let aiActionQueue = [];
+let consecutiveAI = 0;
+
+async function askClaudeForAction() {
+  if (isAIThinking) return;
+  isAIThinking = true;
+  consecutiveAI++;
+
+  const activeTargets = targets.filter(t => !t.collected).map(t => `(${Math.round(t.x)},${Math.round(t.y)})`).join(', ') || 'NONE';
+  const nearestObs = obstacles.map(o => {
+    const cx = o.x + o.w/2, cy = o.y + o.h/2;
+    return { d: Math.hypot(cx - robot.x, cy - robot.y), cx, cy };
+  }).sort((a,b) => a.d - b.d).slice(0,3).map(o => `(${Math.round(o.cx)},${Math.round(o.cy)})`).join(', ');
+
+  const prompt = `You are an embodied AI robot brain controlling a simulated robot.
+Current state:
+- Position: (${Math.round(robot.x)}, ${Math.round(robot.y)})
+- Heading: ${Math.round(robot.heading)}° (0=right, 90=down, 180=left, 270=up)
+- Energy: ${Math.round(energy)}%
+- Forward sensor: ${getSensorDist('forward').toFixed(0)}px (obstacle distance)
+- Left sensor: ${getSensorDist('left').toFixed(0)}px
+- Right sensor: ${getSensorDist('right').toFixed(0)}px
+- Targets remaining: ${activeTargets}
+- Nearby obstacles at: ${nearestObs}
+- Score: ${score}, Collected: ${collected}/${targets.length}, Collisions: ${collisions}
+
+Task: ${document.getElementById('task-select').options[document.getElementById('task-select').selectedIndex].text}
+
+Respond ONLY with JSON: {"action": "X", "reason": "Y", "confidence": 0.0-1.0}
+Action must be one of: forward, turn_left, turn_right, backward
+Reason: brief tactical explanation (max 12 words)`;
+
+  addThought('system', 'AI COGNITION ACTIVE...');
+  showThinkingIndicator();
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    const data = await response.json();
+    const text = data.content?.map(c => c.text || '').join('') || '';
+    const clean = text.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+
+    removeThinkingIndicator();
+    addThought('action', `ACTION: ${parsed.action.toUpperCase()} — ${parsed.reason}`);
+    document.getElementById('s-conf').style.width = (parsed.confidence * 100) + '%';
+    score += Math.round(parsed.confidence * 5);
+
+    aiActionQueue = [parsed.action, parsed.action, parsed.action];
+  } catch (e) {
+    removeThinkingIndicator();
+    addThought('warn', 'AI parse error — falling back to reflex');
+    aiActionQueue = [getReflexAction()];
+  }
+
+  isAIThinking = false;
+}
+
+function showThinkingIndicator() {
+  removeThinkingIndicator();
+  const el = document.createElement('div');
+  el.className = 'thought-entry';
+  el.id = 'thinking-indicator';
+  el.innerHTML = `<div class="thinking-spinner">NEURAL PROCESSING <div class="dot-spin"><span></span><span></span><span></span></div></div>`;
+  document.getElementById('thought-log').appendChild(el);
+  document.getElementById('thought-log').scrollTop = 99999;
+}
+
+function removeThinkingIndicator() {
+  const el = document.getElementById('thinking-indicator');
+  if (el) el.remove();
+}
+
+function addThought(type, text) {
+  const log = document.getElementById('thought-log');
+  const labels = { system: 'SYSTEM', action: 'ACTION SELECTED', warn: 'WARNING' };
+  const el = document.createElement('div');
+  el.className = `thought-entry ${type}`;
+  el.innerHTML = `<div class="thought-label">${labels[type] || 'INFO'}</div>${text}`;
+  log.appendChild(el);
+  if (log.children.length > 40) log.removeChild(log.firstChild);
+  log.scrollTop = 99999;
+}
+
+// ─── STEP ───────────────────────────────────────────────────────────────────
+function simulationStep() {
+  stepCount++;
+  simTime++;
+
+  const agentType = document.getElementById('agent-select').value;
+  let action;
+
+  if (agentType === 'claude') {
+    if (aiActionQueue.length > 0) {
+      action = aiActionQueue.shift();
+    } else {
+      action = getReflexAction(); // fallback while AI thinks
+      askClaudeForAction();
+    }
+  } else if (agentType === 'reflex') {
+    action = getReflexAction();
+  } else {
+    const actions = ['forward','forward','forward','turn_left','turn_right'];
+    action = actions[Math.floor(Math.random() * actions.length)];
+  }
+
+  moveRobot(action);
+  lastAIAction = action;
+
+  // Update score
+  score += 1;
+  document.getElementById('m-score').textContent = score;
+  document.getElementById('header-score').textContent = score;
+  document.getElementById('m-steps').textContent = stepCount;
+
+  // Time display
+  const mins = Math.floor(simTime / 60).toString().padStart(2,'0');
+  const secs = (simTime % 60).toString().padStart(2,'0');
+  document.getElementById('sim-time').textContent = `T+${mins}:${secs}`;
+
+  // Check win
+  const remaining = targets.filter(t => !t.collected).length;
+  if (remaining === 0 && targets.length > 0) {
+    score += 500;
+    addThought('action', `ALL TARGETS COLLECTED! BONUS +500 — Episode complete!`);
+    episode++;
+    document.getElementById('episode-counter').textContent = `EPISODE ${episode}`;
+    generateEnvironment();
+    collected = 0;
+  }
+
+  renderWorld();
+  renderBrain();
+  updateMetrics();
+}
+
+function updateMetrics() {
+  document.getElementById('m-steps').textContent = stepCount;
+  document.getElementById('m-collected').textContent = collected;
+  document.getElementById('m-score').textContent = score;
+  document.getElementById('m-collisions').textContent = collisions;
+  document.getElementById('header-score').textContent = score;
+}
+
+// ─── CONTROLS ───────────────────────────────────────────────────────────────
+function startSimulation() {
+  if (simRunning) { simRunning = false; clearInterval(simInterval); return; }
+  simRunning = true;
+  addThought('system', `SIMULATION STARTED — Agent: ${document.getElementById('agent-select').value.toUpperCase()}`);
+  simInterval = setInterval(simulationStep, 80);
+}
+
+function stepOnce() {
+  simulationStep();
+}
+
+// ─── INIT ───────────────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  initCanvas();
+  // Idle brain animation
+  setInterval(() => { if (!simRunning) renderBrain(); }, 50);
+});
+
+window.addEventListener('resize', () => {
+  const wc = document.getElementById('world');
+  const container = wc.parentElement;
+  wc.width = container.clientWidth;
+  wc.height = container.clientHeight;
+  worldW = wc.width;
+  worldH = wc.height;
+  const bc = document.getElementById('brain');
+  bc.width = bc.offsetWidth;
+  buildNeurons(bc.width, 160);
+  generateEnvironment();
+});
+</script>
+</body>
+</html>
